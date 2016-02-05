@@ -10,6 +10,10 @@ IMAGE_INSTALL = " \
                 ${OSTRO_IMAGE_EXTRA_INSTALL} \
 		"
 
+# In Ostro OS, /bin/sh is always dash, even if bash is installed for
+# interactive use.
+IMAGE_INSTALL += "dash"
+
 # Image features sometimes affect image building (for example,
 # ima enables image signing) and/or adds certain packages
 # via FEATURE_PACKAGES.
@@ -31,6 +35,7 @@ IMAGE_FEATURES[validitems] += " \
     soletta \
     swupd \
     tools-develop \
+    tools-interactive \
 "
 
 # These features come from base recipes, but are not added to
@@ -108,6 +113,7 @@ IMAGE_FEATURES += " \
                         soletta \
                         ${@bb.utils.contains('DISTRO_FEATURES', 'smack', 'smack', '', d)} \
                         swupd \
+                        tools-interactive \
                         ${OSTRO_EXTRA_IMAGE_FEATURES} \
                         "
 OSTRO_EXTRA_IMAGE_FEATURES ?= ""
@@ -168,6 +174,14 @@ FEATURE_PACKAGES_soletta = "packagegroup-soletta"
 # git is not essential for compiling software, but include it anyway
 # because it is the most common source code management tool.
 FEATURE_PACKAGES_tools-develop = "packagegroup-core-buildessential git"
+
+FEATURE_PACKAGES_tools-interactive = "packagegroup-tools-interactive bash"
+ROOTFS_POSTPROCESS_COMMAND_append = "${@bb.utils.contains('IMAGE_FEATURES', 'tools-interactive', ' root_bash_shell; ', '', d)}"
+root_bash_shell () {
+    sed -i -e 's;/bin/sh;/bin/bash;' \
+       ${IMAGE_ROOTFS}${sysconfdir}/passwd \
+       ${IMAGE_ROOTFS}${sysconfdir}/default/useradd
+}
 
 FEATURE_PACKAGES_swupd = "packagegroup-swupd"
 

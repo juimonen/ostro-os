@@ -264,8 +264,8 @@ BBCLASSEXTEND = "native nativesdk"
 
 PACKAGES += " \
   ${PN}-tools \
-  ${PN}-terminfo \
   ${PN}-terminfo-base \
+  ${PN}-terminfo \
 "
 
 FILES_${PN} = "\

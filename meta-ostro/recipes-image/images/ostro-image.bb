@@ -178,9 +178,13 @@ FEATURE_PACKAGES_tools-develop = "packagegroup-core-buildessential git"
 FEATURE_PACKAGES_tools-interactive = "packagegroup-tools-interactive bash"
 ROOTFS_POSTPROCESS_COMMAND_append = "${@bb.utils.contains('IMAGE_FEATURES', 'tools-interactive', ' root_bash_shell; ', '', d)}"
 root_bash_shell () {
-    sed -i -e 's;/bin/sh;/bin/bash;' \
-       ${IMAGE_ROOTFS}${sysconfdir}/passwd \
-       ${IMAGE_ROOTFS}${sysconfdir}/default/useradd
+    for i in ${IMAGE_ROOTFS}${sysconfdir}/passwd \
+             ${IMAGE_ROOTFS}${sysconfdir}/default/useradd \
+             ${IMAGE_ROOTFS}${datadir}/etc/passwd; do
+        if [ -e $i ]; then
+            sed -i -e 's;/bin/sh;/bin/bash;' $i
+        fi
+    done
 }
 
 FEATURE_PACKAGES_swupd = "packagegroup-swupd"

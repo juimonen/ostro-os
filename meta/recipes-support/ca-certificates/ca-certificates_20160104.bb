@@ -18,7 +18,9 @@ SRC_URI = "git://anonscm.debian.org/collab-maint/ca-certificates.git \
            file://0002-update-ca-certificates-use-SYSROOT.patch \
            file://0001-update-ca-certificates-don-t-use-Debianisms-in-run-p.patch \
            file://default-sysroot.patch \
-           file://sbindir.patch"
+           file://sbindir.patch \
+           file://update-ca-certificates-avoid-segfault-in-toybox-sed.patch \
+"
 
 S = "${WORKDIR}/git"
 

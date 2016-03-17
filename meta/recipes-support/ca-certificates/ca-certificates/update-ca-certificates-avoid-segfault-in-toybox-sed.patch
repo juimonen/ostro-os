@@ -1,0 +1,41 @@
+From 44c2ab16f15b17ea1798348e4d65df63f08be635 Mon Sep 17 00:00:00 2001
+From: Patrick Ohly <patrick.ohly@intel.com>
+Date: Wed, 16 Mar 2016 17:02:11 +0100
+Subject: [PATCH] update-ca-certificates: avoid segfault in toybox sed
+
+"sed -e '$a\'" segfaults on one mozilla/Buypass_Class_2_CA_1.crt when
+sed is provided by toybox 0.70 (fixed by upstream commit
+96a5ed118ce8ad), and rejects the operation after fixing the segfault
+(reported in
+http://lists.landley.net/pipermail/toybox-landley.net/2016-March/004866.html).
+
+This change here works around the issue by replacing sed with a much
+simpler combination of cat and echo. This always adds a newline,
+but that shouldn't matter much in practice.
+
+Upstream-Status: Inappropriate [embedded specific]
+
+Signed-off-by: Patrick Ohly <patrick.ohly@intel.com>
+---
+ sbin/update-ca-certificates | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/sbin/update-ca-certificates b/sbin/update-ca-certificates
+index 69b6861..ae9e3f1 100755
+--- a/sbin/update-ca-certificates
++++ b/sbin/update-ca-certificates
+@@ -130,8 +130,9 @@ add() {
+     ln -sf "${CERT##$SYSROOT}" "$PEM"
+     echo "+$PEM" >> "$ADDED"
+   fi
+-  # Add trailing newline to certificate, if it is missing (#635570)
+-  sed -e '$a\' "$CERT" >> "$TEMPBUNDLE"
++  # Always add newline after certificate, it might be missing in the certificate itself (#635570)
++  cat "$CERT" >> "$TEMPBUNDLE"
++  echo >> "$TEMPBUNDLE"
+ }
+ 
+ remove() {
+-- 
+2.1.4
+

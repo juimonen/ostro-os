@@ -18,7 +18,10 @@ SRC_URI = "git://anonscm.debian.org/collab-maint/ca-certificates.git \
            file://0002-update-ca-certificates-use-SYSROOT.patch \
            file://0001-update-ca-certificates-don-t-use-Debianisms-in-run-p.patch \
            file://default-sysroot.patch \
-           file://sbindir.patch"
+           file://sbindir.patch \
+           file://update-ca-certificates-avoid-segfault-in-toybox-sed.patch \
+           file://update-ca-certificates-support-Toybox.patch \
+"
 
 S = "${WORKDIR}/git"
 
@@ -31,13 +34,6 @@ EXTRA_OEMAKE = "\
 
 do_compile_prepend() {
     oe_runmake clean
-}
-
-do_patch[postfuncs] += "patch_mktemp"
-patch_mktemp () {
-    # -t is deprecated and replaced by -p. Toybox supports -p/--tmpdir only with
-    # parameter.
-    sed -i -e 's;mktemp -t ;mktemp -p${TMPDIR:-/tmp} ;g' ${S}/sbin/update-ca-certificates
 }
 
 do_install () {

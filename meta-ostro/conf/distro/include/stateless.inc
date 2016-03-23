@@ -1,5 +1,11 @@
 INHERIT += "stateless"
 
+# Package QA check which greps for known bad paths which should
+# not be used anymore, like files which used to be in /etc and
+# got moved elsewhere.
+STATELESS_DEPRECATED_PATHS = ""
+ERROR_QA += "stateless"
+
 # If set to True, a recipe gets configured with
 # sysconfdir=${datadir}/defaults. If set to a path, that
 # path is used instead. In both cases, /etc typically gets
@@ -112,23 +118,79 @@ STATELESS_RM_pn-os-release = " \
     os-release \
 "
 
-# TODO: /etc/ssl - populated by ca-certificates and used by gnutls, openssl, etc.
-# If nothing really needs the combined /etc/ssl/ca-certificates.crt, perhaps
-# we can replaced "trusted certificates are those in /etc/ssl" with
-# "everything in /usr/share/ca-certificates", like Clear Linux does it?
+# SSL certificates still come from ca-certificates, but the
+# update-ca-certificates, its ca-certificates.conf and the
+# entire resulting output under /etc/ssl get removed after
+# creating the rootfs, so /etc/ssl/ca-certificates.crt is gone.
 #
-# But then how can the local admin remove or replace certificates?
-# Perhaps keep update-ca-certificates, but patch the system so that generated
-# files are ephemeral (/run/ssl) and get populated on each boot?
-# /etc/ca-certificates.conf has to be come optional, i.e. if not present,
-# use everything under /usr/share/ca-certificates.
+# What is used instead (via configure parameters, where necessary,
+# and sometimes supported by additional patches):
+# - /usr/share/ca-certificates has all certificates trusted by the
+#   system
+# - The optional /etc/ssl/cert.pem is a full trust store which can
+#   add or revoke certificates (?).
 #
-#EXTRA_OECONF_append_pn-gnutls = "${@bb.utils.contains('DISTRO_FEATURES', 'stateless', \
-#  '--with-default-trust-store-file=${sysconfdir}/ssl/cert.pem --with-default-trust-store-dir=${datadir}/ca-certificates', \
-#  '', d)}"
-#STATELESS_RM_pn-ca-certificates = " \
-#    ca-certificates.conf \
-#"
+# Clear Linux instructions for maintaining SSL certificates via
+# /etc are out-dated (still explain about a /etc/ssl/certs directory,
+# which is no longer in used because its content was moved to
+# /usr/share/ca-certs). Nothing describes how to use /etc/ssl/cert.pem
+# and it remains unclear whether it can really be used to revoke
+# certificates. Most likely this would require additional tooling.
+#
+# TODO: it seems easier to make update-ca-certificates stateless:
+# - move /etc/ssl/certs to /var/ssl/certs
+# - make /etc/ca-certificates.conf optional
+# - support /etc/ca-certificates/certs instead of /usr/local/share/ca-certificates
+#   (because /usr/local is not supported for local administration)
+# - support /usr/share/defaults/etc/update.d in addition to
+#   /etc/ca-certificates/update.d (if we ever need it for system plugins)
+STATELESS_FIX_SSL_PATHS = " \
+    sed -i \
+        -e 's;${sysconfdir}/ssl/certs;${localstatedir}/ssl/certs;g' \
+        -e 's;/usr/local/share/ca-certificates;/etc/ca-certificates/certs;g' \
+"
+do_install_append_pn-ca-certificates_class-target () {
+    ${STATELESS_FIX_SSL_PATHS}  \
+        ${D}/${mandir}/man8/update-ca-certificates.8
+}
+EXTRA_OECONF_append_pn-curl = " \
+    --with-ca-bundle=${localstatedir}/ssl/certs/ca-certificates.crt \
+"
+EXTRA_OECONF_remove_pn-curl = " \
+    --with-ca-bundle=${sysconfdir}/ssl/certs/ca-certificates.crt \
+"
+stateless_patch_ssl_paths () {
+    ${STATELESS_FIX_SSL_PATHS} \
+        ${STATELESS_SSL_PATHS_TO_PATCH}
+}
+STATELESS_SSL_PATHS_TO_PATCH = ""
+STATELESS_SSL_PATHS_TO_PATCH_pn-perl_class-target = " \
+    $(find ${S} -name Tiny.pm) \
+"
+STATELESS_SSL_PATHS_TO_PATCH_pn-wget_class-target = " \
+    ${S}/src/gnutls.c \
+"
+STATELESS_SSL_PATHS_TO_PATCH_pn-wpa-supplicant_class-target = " \
+    ${S}/wpa_supplicant/wpa_supplicant.conf \
+    ${WORKDIR}/wpa_supplicant.conf \
+"
+STATELESS_SSL_PATHS_TO_PATCH_pn-connman_class-target = " \
+    ${S}/doc/connman-service.config.5.in \
+"
+STATELESS_SSL_PATHS_TO_PATH_pn-ca-certificates_class_target = " \
+    ${S}/sbin/update-ca-certificates.8 \
+"
+do_patch[postfuncs] += "${@ 'stateless_patch_ssl_paths' if '${STATELESS_SSL_PATHS_TO_PATCH}' else ''}"
+STATELESS_DEPRECATED_PATHS += "${sysconfdir}/ssl/certs"
+STATELESS_MV_ROOTFS += " \
+    ssl/certs=${localstatedir}/ssl/certs \
+"
+# The file is a complete list of all certificates provided by the system
+# and therefore redundant, because those certificates are trusted even
+# if not listed explicitly.
+STATELESS_RM_ROOTFS += " \
+    ca-certificates.conf \
+"
 STATELESS_ETC_WHITELIST += "ca-certificates.conf"
 STATELESS_ETC_DIR_WHITELIST += "ssl/*"
 

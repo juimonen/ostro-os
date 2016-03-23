@@ -13,6 +13,7 @@ def stateless_is_whitelisted(etcentry, whitelist):
 def stateless_mangle(d, root, docdir, stateless_mv, stateless_rm, dirwhitelist, is_package):
     import os
     import errno
+    import shutil
 
     # Move away files. Default target is docdir, but others can
     # be set by appending =<new name> to the entry, as in
@@ -45,7 +46,10 @@ def stateless_mangle(d, root, docdir, stateless_mv, stateless_rm, dirwhitelist, 
         old = os.path.join(root, 'etc', entry)
         if os.path.exists(old) or os.path.islink(old):
             bb.note('stateless: removing %s' % old)
-            os.unlink(old)
+            if os.path.isdir(old) and not os.path.islink(old):
+                shutil.rmtree(old)
+            else:
+                os.unlink(old)
 
     # Remove /etc if all that's left are directories.
     # Some directories are expected to exists (for example,
@@ -120,6 +124,35 @@ python stateless_check() {
     if not sane:
         d.setVar("QA_SANE", "")
 }
+
+QAPATHTEST[stateless] = "stateless_qa_check_paths"
+def stateless_qa_check_paths(file,name, d, elf, messages):
+    """
+    Check for deprecated paths that should no longer be used.
+    """
+
+    if os.path.islink(file):
+        return
+
+    # Ignore ipk and deb's CONTROL dir
+    if file.find(name + "/CONTROL/") != -1 or file.find(name + "/DEBIAN/") != -1:
+        return
+
+    bad_paths = d.getVar('STATELESS_DEPRECATED_PATHS', True).split()
+    if bad_paths:
+        import subprocess
+        import pipes
+        cmd = "strings -a %s | grep -F '%s' | sort -u" % (pipes.quote(file), '\n'.join(bad_paths))
+        s = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = s.communicate()
+        # Cannot check return code, some of them may get lost because we use a pipe
+        # and cannot rely on bash's pipefail. Instead just check for unexpected
+        # stderr content.
+        if stderr:
+            bb.fatal('Checking %s for paths deprecated via STATELESS_DEPRECATED_PATHS failed:\n%s' % (file, stderr))
+        if stdout:
+            package_qa_add_message(messages, "stateless", "%s: %s contains paths deprecated in a stateless configuration: %s" % (name, package_qa_clean_path(file, d), stdout))
+do_package_qa[vardeps] += "stateless_qa_check_paths"
 
 # TODO: modifying SRC_URI here does not seem to invalidate sstate.
 # At least adding or removing patches does not trigger a rebuild.

@@ -59,3 +59,15 @@ do_compile() {
     ${HOSTCC} -I . scripts/install.c -o generated/instlist
     ./generated/instlist long | sed -e 's#^#/#' > toybox.links
 }
+
+# grep produces no output. Fall back to sed from coreutils. This
+# works only in Ostro because normally, pulling in coreutils would
+# override all of Toybox. But in ostro-image.bbclass, Toybox gets a priority
+# boost that prevents that.
+#
+# TODO: investigate sed failure. Can be done by symlinking to it,
+# because the grep toy is still in the binary.
+do_compile_append () {
+    grep -v -w grep toybox.links >toybox.links_ && mv toybox.links_ toybox.links
+}
+RDEPENDS_${PN}_append = " grep"
